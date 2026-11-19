@@ -3,7 +3,7 @@ import requests
 import json
 from pathlib import Path
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template
 
 load_dotenv()  # reads .env into environment variables
 
@@ -72,6 +72,10 @@ def set_goal():
         return jsonify(error=str(e)), 502
     save_state({"goal": hours * 3600, "baseline": total})
     return jsonify(ok=True)
+
+@app.get("/")
+def index():
+    return render_template("index.html")
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)
