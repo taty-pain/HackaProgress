@@ -72,3 +72,6 @@ def set_goal():
         return jsonify(error=str(e)), 502
     save_state({"goal": hours * 3600, "baseline": total})
     return jsonify(ok=True)
+
+if __name__ == "__main__":
+    app.run(host="127.0.0.1", port=5000, debug=True)
