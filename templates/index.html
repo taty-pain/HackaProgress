@@ -59,8 +59,13 @@
 
   #err { color: #8a0e38; font-weight: 600; min-height: 1.5em; margin-top: 16px; }
 
-  @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
-</style>
+  #plant { display: block; margin: 32px auto 0; width: 280px;}
+  #stem { transition: stroke-dashoffset 1.2s ease; }
+  #seed, .leaf, #flower { transition: transform 1s ease, opacity 1s ease; transform-box: fill-box; }
+  .leaf   { transform-origin: 0 100%; transform: scale(0); opacity: 0; }
+  #flower { transform-origin: center; transform: scale(0); opacity: 0; }
+
+    @media (prefers-reduced-motion: reduce) { .fill, #stem, #seed, .leaf, #flower { transition: none; } }</style>
 </head>
 <body>
   <h1>HackaProgress</h1>
@@ -129,6 +134,23 @@ function stageName(p) {
   return "Seed in the soil";
 }
 
+const clamp = (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, x));
+
+function grow(p) {
+  $("stem").style.strokeDashoffset = 1 - clamp(p / 0.7);
+
+  document.querySelectorAll(".leaf").forEach(leaf => {
+    const s = clamp((p - leaf.dataset.at) / 0.12);
+    leaf.style.transform = `scale(${s})`;
+    leaf.style.opacity = s;
+  });
+
+  $("flower").style.opacity = clamp((p - 0.62) / 0.08);
+  $("flower").style.transform = `scale(${0.2 + 0.8 * clamp((p - 0.7) / 0.3)})`;
+
+  $("seed").style.opacity = p < 0.05 ? 1 : 0;
+}
+
 async function refresh() {
   try {
     const res = await fetch("/api/progress");
@@ -138,6 +160,7 @@ async function refresh() {
     $("stage").textContent = stageName(d.percent);
     $("line").textContent = `${fmt(d.done)} coded of ${fmt(d.goal)}`;
     $("fill").style.width = `${d.percent * 100}%`;
+        grow(d.percent);
     $("pct").textContent = `${Math.floor(d.percent * 100)}%`;
     $("left").textContent = d.percent >= 1 ? "Goal reached" : `${fmt(d.goal - d.done)} to go`;
   } catch (e) {
