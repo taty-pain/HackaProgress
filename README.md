@@ -50,7 +50,7 @@ python -m pip install -r requirements.txt
 ### Executing Program
 1. Make sure your virtual environment is active
 2. Run python app.py
-3. Go to http://127.0.0.1:5000 in your browser
+3. Go to http://127.0.0.1:5000 in your browser (AFTER RUNNING YOUR CODE)
 4. Enter your coding time goal and press "Plant new seed"
 5. Press Ctrl+C in your terminal if you want to quit the program  
 
@@ -61,7 +61,7 @@ python -m pip install -r requirements.txt
 * **The page shows an error about the API key:** check that `.env` exists, contains `HACKATIME_API_KEY=...`, and that the key is correct. Then restart the app.
 * **Progress stays at 0%:** the bar counts time since you pressed **Plant new seed**. Make sure your editor's WakaTime plugin is running, and note that Hackatime updates about every 30 seconds.
 * **Page looks old after an edit:** do a hard refresh with `Ctrl+Shift+R` (`Cmd+Shift+R` on macOS).
-* **Test the connection by itself:** open http://127.0.0.1:5000/api/today. It should show your seconds coded today.
+* **Test the connection by itself:** open http://127.0.0.1:5000/api/today(AFTER RUNNING YOUR CODE). It should show your seconds coded today.
 
 ## License
 
