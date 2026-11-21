@@ -11,6 +11,8 @@
     --pop:  #e9145e;   /* your pop pink: the bar fill and the button */
     --soft: #3c4a30;   /* softer dark green for secondary text */
     --field:#eaf3dc;   /* pale tint for the input box */
+    [hidden] {display: none !important; }
+    #key { width: 260px;}
   }
 
   body {
@@ -70,17 +72,30 @@
 <body>
   <h1>HackaProgress</h1>
   <p id="stage">Seed in the soil</p>
-  <p id="line">Loading…</p>
 
-  <div class="track"><div class="fill" id="fill"></div></div>
-  <div class="nums"><span id="pct">0%</span><span id="left"></span></div>
+  <section id="setup" hidden>
+    <p>Paste your Hackatime API key to start. It is saved only in this browser and is used just to ask Hackatime for your coding time. Find it at hackatime.hackclub.com/my/settings.</p>
+    <form id="keyform">
+      <label for="key">API key</label>
+      <input id="key" type="password" autocomplete="off" required>
+      <button>Save key</button>
+    </form>
+  </section>
 
-  <form id="form">
-    <label for="hours">Goal (hours)</label>
-    <input id="hours" type="number" min="0.25" step="0.25" value="3">
-    <button>Plant new seed</button>
-  </form>
-  <p id="err"></p>
+  <div id="main" hidden>
+    <p id="line">Loading…</p>
+    <div class="track"><div class="fill" id="fill"></div></div>
+    <div class="nums"><span id="pct">0%</span><span id="left"></span></div>
+
+    <form id="form">
+      <label for ="hours">Goal (hours)</label>
+      <input id="hours" type="number" min="0.25" step="0.25" value="3">
+      <button>Plant new seed</button>
+      <button type="button" id="forget">Forget key</button>
+    </form>
+  </div>
+
+<p id="err"></p>
 
 <svg id="plant" viewBox="0 0 300 340" role="img" aria-label="Plant that grows as you code">
   <!-- soil -->
@@ -119,6 +134,7 @@
 
 <script>
 const $ = id => document.getElementById(id);
+const clamp = (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, x));
 
 function fmt(seconds) {
   const m = Math.floor(seconds / 60);
@@ -134,53 +150,112 @@ function stageName(p) {
   return "Seed in the soil";
 }
 
-const clamp = (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, x));
-
 function grow(p) {
   $("stem").style.strokeDashoffset = 1 - clamp(p / 0.7);
-
   document.querySelectorAll(".leaf").forEach(leaf => {
     const s = clamp((p - leaf.dataset.at) / 0.12);
     leaf.style.transform = `scale(${s})`;
     leaf.style.opacity = s;
   });
-
   $("flower").style.opacity = clamp((p - 0.62) / 0.08);
   $("flower").style.transform = `scale(${0.2 + 0.8 * clamp((p - 0.7) / 0.3)})`;
-
   $("seed").style.opacity = p < 0.05 ? 1 : 0;
 }
 
+const STORE = "hackaprogress";
+
+function load() {
+  try { return JSON.parse(localStorage.getItem(STORE)) || {}; }
+  catch { return {}; }
+}
+function save(state) {
+  try { localStorage.setItem(STORE, JSON.stringify(state)); } catch {}
+}
+const newState = (key, goal, total) => ({
+  key, goal, baseline: total, banked: 0, lastTotal: total,
+  date: new Date().toDateString(),
+});
+
+async function fetchToday(key) {
+  const res = await fetch("/api/today", { headers: { "X-Hackatime-Key": key } });
+  const d = await res.json();
+  if (!res.ok) throw new Error(d.error);
+  return d.seconds;
+}
+
 async function refresh() {
+  const s = load();
+  $("setup").hidden = !!s.key;
+  $("main").hidden = !s.key;
+  if (!s.key) return;
+
   try {
-    const res = await fetch("/api/progress");
-    const d = await res.json();
-    if (!res.ok) throw new Error(d.error);
+    const total = await fetchToday(s.key);
+
+    const today = new Date().toDateString();
+    if (s.date !== today) {
+      s.banked = (s.banked || 0) + Math.max((s.lastTotal || 0) - (s.baseline || 0), 0);
+      s.baseline = 0;
+      s.date = today;
+    }
+    s.lastTotal = total;
+    save(s);
+
+    const goal = s.goal || 3 * 3600;
+    const done = (s.banked || 0) + Math.max(total - (s.baseline || 0), 0);
+    const p = Math.min(done / goal, 1);
+
     $("err").textContent = "";
-    $("stage").textContent = stageName(d.percent);
-    $("line").textContent = `${fmt(d.done)} coded of ${fmt(d.goal)}`;
-    $("fill").style.width = `${d.percent * 100}%`;
-        grow(d.percent);
-    $("pct").textContent = `${Math.floor(d.percent * 100)}%`;
-    $("left").textContent = d.percent >= 1 ? "Goal reached" : `${fmt(d.goal - d.done)} to go`;
+    $("stage").textContent = stageName(p);
+    $("line").textContent = `${fmt(done)} coded of ${fmt(goal)}`;
+    $("fill").style.width = `${p * 100}%`;
+    $("pct").textContent = `${Math.floor(p * 100)}%`;
+    $("left").textContent = p >= 1 ? "Goal reached" : `${fmt(goal - done)} to go`;
+    grow(p);
   } catch (e) {
     $("err").textContent = e.message;
   }
 }
 
+$("keyform").addEventListener("submit", async e => {
+  e.preventDefault();
+  const key = $("key").value.trim();
+  try {
+    await fetchToday(key);                    
+    save(newState(key, 3 * 3600, 0));            
+    $("key").value = "";
+    $("err").textContent = "";
+    refresh();
+  } catch (err) {
+    $("err").textContent = err.message;
+  }
+});
+
 $("form").addEventListener("submit", async e => {
-  e.preventDefault();                       // stop the page reloading
-  const res = await fetch("/api/goal", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ hours: $("hours").value }),
-  });
-  if (!res.ok) { $("err").textContent = (await res.json()).error; return; }
+  e.preventDefault();
+  const hours = parseFloat($("hours").value);
+  if (!(hours > 0 && hours <= 100)) {
+    $("err").textContent = "Enter a goal between 0 and 100 hours.";
+    return;
+  }
+  const s = load();
+  try {
+    const total = await fetchToday(s.key);
+    save(newState(s.key, hours * 3600, total));  
+    refresh();
+  } catch (err) {
+    $("err").textContent = err.message;
+  }
+});
+
+$("forget").addEventListener("click", () => {
+  try { localStorage.removeItem(STORE); } catch {}
+  grow(0);
   refresh();
 });
 
 refresh();
-setInterval(refresh, 15000);             
+setInterval(refresh, 30000);  
 </script>
 </body>
 </html>
